@@ -8,7 +8,8 @@ import type {
   Employee, 
   MenuItem,
   Table,
-  Customer
+  Customer,
+  Supplier
 } from '../lib/supabase';
 
 // Custom hook for reservations
@@ -299,11 +300,40 @@ export function useInventory() {
     }
   };
 
+  const updateInventory = async (id: string, updates: Partial<InventoryItem>) => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to update inventory item');
+    }
+  };
+
+  const deleteInventory = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('inventory_items')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to delete inventory item');
+    }
+  };
+
   return {
     inventory,
     loading,
     error,
     updateStock,
+    updateInventory,
+    deleteInventory,
     refetch: fetchInventory
   };
 }
@@ -481,4 +511,31 @@ export function useCustomers() {
     createCustomer,
     refetch: fetchCustomers
   };
+}
+
+export function useSuppliers() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
+  const fetchSuppliers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSuppliers(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { suppliers, loading, error, refetch: fetchSuppliers };
 }

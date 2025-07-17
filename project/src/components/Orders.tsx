@@ -24,7 +24,7 @@ const Orders = () => {
   
   const [selectedTab, setSelectedTab] = useState('active');
   const [showNewOrder, setShowNewOrder] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(null);
+  const [showReceipt, setShowReceipt] = useState<any>(null);
   const [newOrder, setNewOrder] = useState({
     table_id: '',
     order_type: 'dine_in' as 'dine_in' | 'takeout' | 'delivery',
@@ -51,7 +51,7 @@ const Orders = () => {
     return acc;
   }, {} as Record<string, typeof menuItems>);
 
-  const addItemToOrder = (item) => {
+  const addItemToOrder = (item: {id: string, name: string, price: number} | any) => {
     const existingItem = newOrder.items.find(orderItem => orderItem.name === item.name);
     if (existingItem) {
       existingItem.quantity += 1;
@@ -63,7 +63,7 @@ const Orders = () => {
     });
   };
 
-  const removeItemFromOrder = (itemName) => {
+  const removeItemFromOrder = (itemName: string) => {
     const updatedItems = newOrder.items.filter(item => item.name !== itemName);
     setNewOrder({
       ...newOrder,
@@ -71,7 +71,7 @@ const Orders = () => {
     });
   };
 
-  const updateQuantity = (itemName, newQuantity) => {
+  const updateQuantity = (itemName: string, newQuantity: number) => {
     if (newQuantity === 0) {
       removeItemFromOrder(itemName);
       return;
@@ -105,7 +105,7 @@ const Orders = () => {
 
       const orderData = {
         restaurant_id: '550e8400-e29b-41d4-a716-446655440000',
-        table_id: newOrder.order_type === 'dine_in' ? newOrder.table_id : null,
+        table_id: newOrder.order_type === 'dine_in' ? newOrder.table_id || undefined : undefined,
         order_number: `ORD-${Date.now()}`,
         order_type: newOrder.order_type,
         status: 'pending' as const,
@@ -133,11 +133,11 @@ const Orders = () => {
     }
   };
 
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
-    await updateOrderStatus(orderId, newStatus as any);
+  const handleStatusUpdate = async (orderId: string, status: string) => {
+    await updateOrderStatus(orderId, status as any);
     
     // Show receipt when order is delivered
-    if (newStatus === 'delivered') {
+    if (status === 'delivered') {
       const order = orders.find(o => o.id === orderId);
       if (order) {
         setShowReceipt(order);
@@ -175,7 +175,7 @@ const Orders = () => {
   });
 
   // Format currency in Kenyan Shillings
-  const formatKES = (amount) => {
+  const formatKES = (amount: number) => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -185,7 +185,7 @@ const Orders = () => {
   };
 
   // Generate receipt
-  const generateReceipt = (order) => {
+  const generateReceipt = (order: any) => {
     const server = getCurrentServer();
     const currentTime = new Date().toLocaleString('en-US', {
       timeZone: 'Africa/Nairobi',
@@ -204,10 +204,10 @@ const Orders = () => {
       servedAt: currentTime,
       receiptNumber: `RCP-${Date.now()}`,
       businessDetails: {
-        name: 'RestaurantPro Kenya',
+        name: 'Fork and Flames',
         address: 'Nairobi, Kenya',
-        phone: '+254 700 123 456',
-        email: 'info@restaurantpro.co.ke',
+        phone: '0759311571',
+        email: 'sharletfina2@gmail.com',
         vatReg: 'P051234567M',
         pin: 'A012345678Z'
       }
@@ -603,7 +603,7 @@ const Orders = () => {
               
               <div className="border-t pt-3">
                 <h4 className="font-medium mb-2">Items Ordered:</h4>
-                {showReceipt.order_items?.map((item, index) => (
+                {showReceipt.order_items?.map((item: any, index: number) => (
                   <div key={index} className="flex justify-between">
                     <span>{item.quantity}x {item.menu_item?.name}</span>
                     <span>{formatKES(item.total_price)}</span>

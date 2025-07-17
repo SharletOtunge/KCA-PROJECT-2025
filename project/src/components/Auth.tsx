@@ -74,7 +74,7 @@ const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">RestaurantPro</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Fork and Flames</h1>
           <p className="text-gray-600 mt-2">
             {isLogin ? 'Sign in to your account' : 'Create your account'}
           </p>

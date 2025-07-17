@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useInventory } from '../hooks/useSupabase';
+import { useSuppliers } from '../hooks/useSupabase';
+import { supabase } from '../lib/supabase';
 import { 
   Package, 
   TrendingDown, 
@@ -16,7 +18,8 @@ import {
 } from 'lucide-react';
 
 const Inventory = () => {
-  const { inventory, loading, updateStock } = useInventory();
+  const { inventory, loading, updateStock, updateInventory, deleteInventory, refetch } = useInventory();
+  const { suppliers } = useSuppliers();
   
   const [showNewItem, setShowNewItem] = useState(false);
   const [showPurchaseOrder, setShowPurchaseOrder] = useState(false);
@@ -32,6 +35,8 @@ const Inventory = () => {
     pricePerUnit: 0,
     supplier: ''
   });
+  const [editModalItem, setEditModalItem] = useState<any>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null);
 
   if (loading) {
     return (
@@ -48,14 +53,14 @@ const Inventory = () => {
     ? inventory 
     : inventory.filter(item => item.category?.name === selectedCategory);
 
-  const getItemStatus = (item) => {
+  const getItemStatus = (item: any) => {
     if (item.current_stock <= 0) return 'Out of Stock';
     if (item.current_stock <= item.minimum_stock) return 'Low Stock';
     if (item.current_stock <= item.minimum_stock * 1.5) return 'Critical';
     return 'In Stock';
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'In Stock':
         return 'bg-green-100 text-green-800';
@@ -79,7 +84,7 @@ const Inventory = () => {
   );
 
   // Format currency in Kenyan Shillings
-  const formatKES = (amount) => {
+  const formatKES = (amount: number) => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -94,7 +99,7 @@ const Inventory = () => {
     }
   };
 
-  const startEditing = (item) => {
+  const startEditing = (item: any) => {
     setEditingItem(item.id);
     setEditStock(item.current_stock);
   };
@@ -102,6 +107,78 @@ const Inventory = () => {
   const cancelEditing = () => {
     setEditingItem(null);
     setEditStock(0);
+  };
+
+  // Edit modal handlers
+  const openEditModal = (item: any) => {
+    setEditModalItem({ ...item });
+  };
+  const closeEditModal = () => {
+    setEditModalItem(null);
+  };
+  const handleEditChange = (field: string, value: any) => {
+    setEditModalItem((prev: any) => ({ ...prev, [field]: value }));
+  };
+  const handleEditSave = async () => {
+    try {
+      await updateInventory(editModalItem.id, {
+        name: editModalItem.name,
+        minimum_stock: editModalItem.minimum_stock,
+        current_stock: editModalItem.current_stock,
+        unit_cost: editModalItem.unit_cost,
+        unit: editModalItem.unit,
+        supplier_id: editModalItem.supplier_id,
+        // category and supplier updates would require their IDs if relational
+      });
+      closeEditModal();
+      refetch();
+      alert('Item updated successfully!');
+    } catch (error) {
+      alert('Failed to update item.');
+    }
+  };
+  // Delete handlers
+  const openDeleteConfirm = (item: any) => setDeleteConfirmItem(item);
+  const closeDeleteConfirm = () => setDeleteConfirmItem(null);
+  const handleDelete = async () => {
+    try {
+      await deleteInventory(deleteConfirmItem.id);
+      closeDeleteConfirm();
+      refetch();
+      alert('Item deleted successfully!');
+    } catch (error) {
+      alert('Failed to delete item.');
+    }
+  };
+
+  const handleAddItem = async () => {
+    try {
+      await supabase.from('inventory_items').insert([
+        {
+          name: newItem.name,
+          unit: newItem.unit,
+          current_stock: newItem.currentStock,
+          minimum_stock: newItem.minimumStock,
+          unit_cost: newItem.pricePerUnit,
+          supplier_id: newItem.supplier || null,
+          // category_id: (if you want to support category selection by id)
+        }
+      ]);
+      setShowNewItem(false);
+      setNewItem({
+        name: '',
+        category: '',
+        currentStock: 0,
+        minimumStock: 0,
+        unit: '',
+        pricePerUnit: 0,
+        supplier: ''
+      });
+      refetch();
+      alert('Item added successfully!');
+    } catch (error) {
+      alert('Failed to add item.');
+    }
   };
 
   return (
@@ -315,10 +392,10 @@ const Inventory = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
+                    <button className="text-blue-600 hover:text-blue-900 mr-3" onClick={() => openEditModal(item)}>
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button className="text-red-600 hover:text-red-900">
+                    <button className="text-red-600 hover:text-red-900" onClick={() => openDeleteConfirm(item)}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -412,13 +489,16 @@ const Inventory = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                <input
-                  type="text"
+                <select
                   value={newItem.supplier}
-                  onChange={(e) => setNewItem({...newItem, supplier: e.target.value})}
+                  onChange={e => setNewItem({ ...newItem, supplier: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter supplier name"
-                />
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
@@ -440,18 +520,7 @@ const Inventory = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  setShowNewItem(false);
-                  setNewItem({
-                    name: '',
-                    category: '',
-                    currentStock: 0,
-                    minimumStock: 0,
-                    unit: '',
-                    pricePerUnit: 0,
-                    supplier: ''
-                  });
-                }}
+                onClick={handleAddItem}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Add Item
@@ -525,6 +594,77 @@ const Inventory = () => {
               >
                 Create Purchase Order
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editModalItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Item</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                <input type="text" value={editModalItem.name} onChange={e => handleEditChange('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <select value={editModalItem.unit} onChange={e => handleEditChange('unit', e.target.value)} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select Unit</option>
+                    <option value="pieces">Pieces</option>
+                    <option value="lbs">Pounds</option>
+                    <option value="oz">Ounces</option>
+                    <option value="bottles">Bottles</option>
+                    <option value="boxes">Boxes</option>
+                    <option value="heads">Heads</option>
+                    <option value="wheels">Wheels</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
+                  <input type="number" value={editModalItem.current_stock} onChange={e => handleEditChange('current_stock', parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Stock</label>
+                  <input type="number" value={editModalItem.minimum_stock} onChange={e => handleEditChange('minimum_stock', parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price per Unit (KES)</label>
+                  <input type="number" step="0.01" value={editModalItem.unit_cost || 0} onChange={e => handleEditChange('unit_cost', parseFloat(e.target.value))} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <select value={editModalItem.supplier_id || ''} onChange={e => handleEditChange('supplier_id', e.target.value)} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={closeEditModal} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleEditSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Item</h3>
+            <p>Are you sure you want to delete <span className="font-bold">{deleteConfirmItem.name}</span> from inventory?</p>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={closeDeleteConfirm} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
